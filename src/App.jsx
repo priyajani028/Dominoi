@@ -24,6 +24,12 @@ export default function App() {
   const ready = usePlayground((s) => s.ready);
   const [dpr, setDpr] = useState(QUALITY.maxDpr);
   const [webgl] = useState(hasWebGL);
+  const [monitor, setMonitor] = useState(false);
+  useEffect(() => {
+    if (!ready) return;
+    const t = setTimeout(() => setMonitor(true), 4000);
+    return () => clearTimeout(t);
+  }, [ready]);
 
   // Fade out the static splash from index.html once the first frame is on screen.
   useEffect(() => {
@@ -54,13 +60,18 @@ export default function App() {
           camera={{ position: [0, 19, 15], fov: 35, near: 0.1, far: 400 }}
           gl={{ antialias: false, powerPreference: 'high-performance', toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.95 }}
         >
-          {/* Drop resolution if the frame rate sags; restore it when there's headroom. */}
-          <PerformanceMonitor
-            onDecline={() => setDpr(1)}
-            onIncline={() => setDpr(QUALITY.maxDpr)}
-            flipflops={3}
-            onFallback={() => setDpr(1)}
-          />
+          {/* Scale resolution smoothly with sustained frame rate — only after loading has settled
+              (shader compiles make the first seconds stutter) and never below the tier's floor. */}
+          {monitor && (
+            <PerformanceMonitor
+              factor={1}
+              ms={400}
+              iterations={8}
+              flipflops={4}
+              onChange={({ factor }) => setDpr(QUALITY.minDpr + (QUALITY.maxDpr - QUALITY.minDpr) * factor)}
+              onFallback={() => setDpr(QUALITY.minDpr)}
+            />
+          )}
           <Suspense fallback={null}>
             <Scene />
           </Suspense>
